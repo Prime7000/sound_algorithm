@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sound Algorithm</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            margin: 0;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #recordButton {
+            background-color: #4CAF50;
+            color: white;
+        }
+        #stopButton {
+            background-color: #f44336;
+            color: white;
+        }
+        #transcribeButton {
+            background-color: #008CBA;
+            color: white;
+        }
+        #transcription {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #e9e9e9;
+            min-height: 50px;
+            text-align: left;
+        }
+        .mode-selection {
+            margin-bottom: 20px;
+        }
+        .mode-selection button {
+            background-color: #555;
+            color: white;
+        }
+        .mode-selection button.active {
+            background-color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Sound Algorithm</h1>
+
+        <div class="mode-selection">
+            <button id="manualModeBtn">Manual Mode</button>
+            <button id="automaticModeBtn">Automatic Mode</button>
+        </div>
+
+        <div id="manualControls">
+            <button id="recordButton">Record</button>
+            <button id="stopButton">Stop</button>
+            <button id="transcribeButton">Transcribe</button>
+        </div>
+
+        <div id="automaticStatus" style="display: none;">
+            <p>Automatic Recording Status: <span id="autoRecordStatus">Listening...</span></p>
+            <p>Last Transcription: <span id="autoTranscription">No transcription yet.</span></p>
+        </div>
+
+        <h2>Transcription:</h2>
+        <div id="transcription">
+            <p>Your transcription will appear here.</p>
+        </div>
+    </div>
+
+    <script>
+        const recordButton = document.getElementById('recordButton');
+        const stopButton = document.getElementById('stopButton');
+        const transcribeButton = document.getElementById('transcribeButton');
+        const transcriptionDiv = document.getElementById('transcription');
+        const manualModeBtn = document.getElementById('manualModeBtn');
+        const automaticModeBtn = document.getElementById('automaticModeBtn');
+        const manualControls = document.getElementById('manualControls');
+        const automaticStatus = document.getElementById('automaticStatus');
+        const autoRecordStatus = document.getElementById('autoRecordStatus');
+        const autoTranscription = document.getElementById('autoTranscription');
+
+        let currentMode = 'manual_mode'; // Default mode
+
+        function setMode(mode) {
+            currentMode = mode;
+            fetch('/state', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `transcribe_state=${mode}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Mode set:', data);
+                if (mode === 'manual_mode') {
+                    manualControls.style.display = 'block';
+                    automaticStatus.style.display = 'none';
+                    manualModeBtn.classList.add('active');
+                    automaticModeBtn.classList.remove('active');
+                } else {
+                    manualControls.style.display = 'none';
+                    automaticStatus.style.display = 'block';
+                    manualModeBtn.classList.remove('active');
+                    automaticModeBtn.classList.add('active');
+                    startAutoStatusPolling();
+                }
+            })
+            .catch(error => console.error('Error setting mode:', error));
+        }
+
+        manualModeBtn.addEventListener('click', () => setMode('manual_mode'));
+        automaticModeBtn.addEventListener('click', () => setMode('automatic_mode'));
+
+        recordButton.addEventListener('click', () => {
+            if (currentMode === 'manual_mode') {
+                fetch('/call_audio')
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log(data);
+                        transcriptionDiv.innerHTML = '<p>Recording...</p>';
+                    })
+                    .catch(error => console.error('Error recording:', error));
+            }
+        });
+
+        stopButton.addEventListener('click', () => {
+            if (currentMode === 'manual_mode') {
+                fetch('/stop_recording')
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log(data);
+                        transcriptionDiv.innerHTML = '<p>Recording stopped. Click Transcribe to get text.</p>';
+                    })
+                    .catch(error => console.error('Error stopping recording:', error));
+            }
+        });
+
+        transcribeButton.addEventListener('click', () => {
+            if (currentMode === 'manual_mode') {
+                fetch('/transcribe_audio')
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log(data);
+                        transcriptionDiv.innerHTML = `<p>${data.transcribe}</p>`;
+                    })
+                    .catch(error => console.error('Error transcribing:', error));
+            }
+        });
+
+        function startAutoStatusPolling() {
+            setInterval(() => {
+                fetch('/auto_record')
+                    .then(response => response.json())
+                    .then(data => {
+                        autoRecordStatus.textContent = data.auto_record === 'true' ? 'Recording' : 'Listening...';
+                    })
+                    .catch(error => console.error('Error fetching auto record status:', error));
+
+                fetch('/transcribe_audio') // This endpoint also provides auto_transcription
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.transcribe && data.transcribe !== 'no transcription') {
+                            autoTranscription.textContent = data.transcribe;
+                        }
+                    })
+                    .catch(error => console.error('Error fetching auto transcription:', error));
+            }, 2000); // Poll every 2 seconds
+        }
+
+        // Initialize mode on page load
+        setMode(currentMode);
+    </script>
+</body>
+</html>

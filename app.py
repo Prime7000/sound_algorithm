@@ -1,3 +1,8 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from flask import Flask
 from flask import render_template,jsonify,redirect,request
 from groq import Groq
@@ -35,7 +40,7 @@ def automatic_detection_loop():
         sf.write(filename, np.concatenate(audio_data, axis=0), SAMPLE_RATE)
         print(f"Saved to {filename}")
 
-        api_key = 'YOUR_GROQ_API_KEY'
+        api_key = os.getenv('GROQ_API_KEY')
         client = Groq(api_key=api_key)
         
         with open(filename, "rb") as f:
@@ -158,7 +163,7 @@ def stop_recording():
 @app.route('/transcribe_audio')
 def transcribe():
     if recording_state == 'manual_mode':
-        api_key = 'YOUR_GROQ_API_KEY'
+        api_key = os.getenv('GROQ_API_KEY')
         client = Groq(api_key=api_key)
         
         with open("mic.wav", "rb") as f:

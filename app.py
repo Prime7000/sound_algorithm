@@ -30,12 +30,36 @@ def automatic_detection_loop():
     CHANNELS = 1
     BLOCKSIZE = 1024
 
+    # def perform_action():
+    #     a, b = 2, 5
+    #     print(f"🔔 Silence detected. Performing action: {a} + {b} = {a + b}")
+    #     global auto_transcription
+    #     auto_transcription = f"🔔 Silence detected. Performing action: {a} + {b} = {a + b}"
+    #     return auto_transcription
+
     def perform_action():
-        a, b = 2, 5
-        print(f"🔔 Silence detected. Performing action: {a} + {b} = {a + b}")
-        global auto_transcription
-        auto_transcription = f"🔔 Silence detected. Performing action: {a} + {b} = {a + b}"
-        return auto_transcription
+        recording_voice() #to record the voice
+
+        api_key = 'YOUR_GROQ_API_KEY'
+        client = Groq(api_key=api_key)
+        
+        with open("mic.wav", "rb") as f:
+            resp = client.audio.transcriptions.create(
+                file=f,
+                model="whisper-large-v3",
+                response_format="verbose_json",
+                language="en",
+                timestamp_granularities=["segment", "word"]
+            )
+
+        print(resp.text)
+
+
+        data = {
+            'transcribe':resp.text,
+            'finished':'true'
+        }
+        return data.transcribe
 
     state = "listening"
     last_sound_time = 0

@@ -30,20 +30,15 @@ def automatic_detection_loop():
     CHANNELS = 1
     BLOCKSIZE = 1024
 
-    # def perform_action():
-    #     a, b = 2, 5
-    #     print(f"🔔 Silence detected. Performing action: {a} + {b} = {a + b}")
-    #     global auto_transcription
-    #     auto_transcription = f"🔔 Silence detected. Performing action: {a} + {b} = {a + b}"
-    #     return auto_transcription
-
-    def perform_action():
-        recording_voice() #to record the voice
+    def perform_action(audio_data):
+        filename = "mic.wav"
+        sf.write(filename, np.concatenate(audio_data, axis=0), SAMPLE_RATE)
+        print(f"Saved to {filename}")
 
         api_key = 'YOUR_GROQ_API_KEY'
         client = Groq(api_key=api_key)
         
-        with open("mic.wav", "rb") as f:
+        with open(filename, "rb") as f:
             resp = client.audio.transcriptions.create(
                 file=f,
                 model="whisper-large-v3",
@@ -53,16 +48,13 @@ def automatic_detection_loop():
             )
 
         print(resp.text)
-
-
-        data = {
-            'transcribe':resp.text,
-            'finished':'true'
-        }
-        return data.transcribe
+        global auto_transcription
+        auto_transcription = resp.text
+        return resp.text
 
     state = "listening"
     last_sound_time = 0
+    recorded_data = []
 
     print("🎧 Listening continuously... (Auto Mode ON)")
 
@@ -76,21 +68,19 @@ def automatic_detection_loop():
                 if state == "listening":
                     if volume > THRESHOLD:
                         print("🎤 Sound detected above threshold...")
-                        state = "awaiting_silence"
+                        state = "recording"
                         last_sound_time = now
                         globals()['auto_recording'] = 'true'
+                        recorded_data.append(data)
 
-                elif state == "awaiting_silence":
+                elif state == "recording":
+                    recorded_data.append(data)
                     if volume > THRESHOLD:
                         last_sound_time = now
                     elif now - last_sound_time > SILENCE_DURATION:
-                        perform_action()
-                        state = "post_action_wait"
-                        globals()['auto_recording'] = 'true'
-
-                elif state == "post_action_wait":
-                    if volume < THRESHOLD:
-                        time.sleep(0.1)
+                        print("🎤 Silence detected, processing...")
+                        perform_action(recorded_data)
+                        recorded_data = []
                         state = "listening"
                         globals()['auto_recording'] = 'false'
 
